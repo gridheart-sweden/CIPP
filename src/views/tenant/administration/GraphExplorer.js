@@ -12,36 +12,33 @@ import {
 } from '@coreui/react'
 import useQuery from 'src/hooks/useQuery'
 import { Field, Form, FormSpy } from 'react-final-form'
-import { RFFCFormInput, RFFCFormSelect } from 'src/components/forms'
+import { RFFCFormCheck, RFFCFormInput, RFFCFormSelect } from 'src/components/forms'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faChevronRight, faChevronDown, faSearch } from '@fortawesome/free-solid-svg-icons'
 import { CippTable } from 'src/components/tables'
-import { TenantSelector } from 'src/components/utilities'
 import { useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
 import { CippPage } from 'src/components/layout/CippPage'
 import { useLazyGenericGetRequestQuery } from 'src/store/api/app'
 import { OnChange } from 'react-final-form-listeners'
+import { queryString } from 'src/helpers'
 
 const GraphExplorer = () => {
   let navigate = useNavigate()
   const tenant = useSelector((state) => state.app.currentTenant)
   let query = useQuery()
   const endpoint = query.get('endpoint')
+  const disablePagination = query.get('disablePagination')
   const SearchNow = query.get('SearchNow')
   const [visibleA, setVisibleA] = useState(true)
   const handleSubmit = async (values) => {
     setVisibleA(false)
-    Object.keys(values).filter(function (x) {
-      if (values[x] === null) {
-        delete values[x]
-      }
-      return null
-    })
+
     const shippedValues = {
       tenantFilter: tenant.defaultDomainName,
       SearchNow: true,
-      ...values,
+      endpoint: encodeURIComponent(values.endpoint),
+      random: (Math.random() + 1).toString(36).substring(7),
     }
     var queryString = Object.keys(shippedValues)
       .map((key) => key + '=' + shippedValues[key])
@@ -74,11 +71,14 @@ const GraphExplorer = () => {
   useEffect(() => {
     execGraphRequest({
       path: 'api/execGraphRequest',
-      params: { tenantFilter: tenant.defaultDomainName, endpoint: endpoint },
+      params: {
+        tenantFilter: tenant.defaultDomainName,
+        endpoint: endpoint,
+        disablePagination: disablePagination,
+      },
     })
-  }, [endpoint, execGraphRequest, tenant.defaultDomainName])
+  }, [endpoint, execGraphRequest, tenant.defaultDomainName, query])
 
-  /* eslint-disable react/prop-types */
   const WhenFieldChanges = ({ field, set }) => (
     <Field name={set} subscription={{}}>
       {(
@@ -123,12 +123,6 @@ const GraphExplorer = () => {
                   render={({ handleSubmit, submitting, values }) => {
                     return (
                       <CForm onSubmit={handleSubmit}>
-                        <CRow>
-                          <CCol>
-                            <TenantSelector showAllTenantSelector />
-                          </CCol>
-                        </CRow>
-                        <hr className="my-4" />
                         <CRow>
                           <CCol>
                             <RFFCFormSelect
@@ -176,7 +170,7 @@ const GraphExplorer = () => {
                                 {
                                   label: 'Secure Score with Current Score and Max Score',
                                   value:
-                                    'security/secureScores?$top=1&$select=currentscore,maxscore,activeusercount,enabledservices',
+                                    'security/secureScores?$top=90&$select=currentscore,maxscore,activeusercount,enabledservices',
                                 },
                               ]}
                             />
@@ -193,6 +187,9 @@ const GraphExplorer = () => {
                           </CCol>
                           <WhenFieldChanges field="reportTemplate" set="endpoint" />
                         </CRow>
+                        <CRow>
+                          <RFFCFormCheck name="disablePagination" label="Disable Pagination" />
+                        </CRow>
                         <CRow className="mb-3">
                           <CCol>
                             <CButton type="submit" disabled={submitting}>
@@ -201,11 +198,6 @@ const GraphExplorer = () => {
                             </CButton>
                           </CCol>
                         </CRow>
-                        {/*<CRow>*/}
-                        {/* <CCol>*/}
-                        {/*   <pre>{JSON.stringify(values, null, 2)}</pre>*/}
-                        {/* </CCol>*/}
-                        {/*</CRow>*/}
                       </CForm>
                     )
                   }}
@@ -219,12 +211,19 @@ const GraphExplorer = () => {
       <CippPage title="Report Results" tenantSelector={false}>
         {!SearchNow && <span>Execute a search to get started.</span>}
         {graphrequest.isSuccess && QueryColumns.set && SearchNow && (
-          <CippTable
-            reportName="GraphExplorer"
-            columns={QueryColumns.data}
-            data={graphrequest.data}
-            isFetching={graphrequest.isFetching}
-          />
+          <CCard className="content-card">
+            <CCardHeader className="d-flex justify-content-between align-items-center">
+              <CCardTitle>Results</CCardTitle>
+            </CCardHeader>
+            <CCardBody>
+              <CippTable
+                reportName="GraphExplorer"
+                columns={QueryColumns.data}
+                data={graphrequest.data}
+                isFetching={graphrequest.isFetching}
+              />
+            </CCardBody>
+          </CCard>
         )}
       </CippPage>
     </>
